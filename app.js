@@ -1,4 +1,143 @@
-// // import express from "express";
+import express from 'express';
+import { Sequelize, DataTypes } from 'sequelize';
+import dotenv from 'dotenv';
+import path from "path";
+import { fileURLToPath } from "url";
+
+dotenv.config();
+// // // Set EJS
+const app = express();
+const port = process.env.PORT || 5432;
+
+// // // Fix __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// Middleware to parse JSON requests
+app.use(express.json());
+
+// Middleware to parse URL-encoded data
+app.use(express.urlencoded({ extended: true }));
+
+
+// Initialize Sequelize with PostgreSQL connection
+const sequelize = new Sequelize('postgresql://root:RKOCz9fe3OmmCk6GeVdFkOBhLpSX9meH@dpg-cucvqo1opnds73amuj90-a.oregon-postgres.render.com/example_iyq5', {
+  dialect: 'postgres',
+  logging: false,
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false,
+    },
+  },
+});
+
+// Define the Post model
+const Post = sequelize.define('Post', {
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  content: {
+    type: DataTypes.TEXT,
+    allowNull: false,
+  },
+});
+
+// Synchronize the model with the database
+sequelize
+  .sync()
+  .then(() => {
+    console.log('Database connected and Post model synchronized');
+  })
+  .catch((err) => {
+    console.error('Error connecting to the database:', err);
+  });
+
+// Routes
+
+// Create a new post
+app.post('/posts', async (req, res) => {
+  const { title, content } = req.body;
+  try {
+    const newPost = await Post.create({ title, content });
+    res.status(201).json(newPost);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create post' });
+  }
+});
+
+// Retrieve all posts
+app.get('/', async (req, res) => {
+  try {
+    const posts = await Post.findAll();
+    res.render("home",{data:posts});
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch posts' });
+  }
+});
+
+// Route to delete a post by ID
+app.post('/delete-post/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const post = await Post.findByPk(id);
+    if (post) {
+      await post.destroy();
+      res.redirect('/');
+    } else {
+      res.status(404).json({ error: 'Post not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete post' });
+  }
+});
+
+// Route to render edit form
+app.get('/edit-post/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const post = await Post.findByPk(id);
+    if (post) {
+      res.render('edit', { post });
+    } else {
+      res.status(404).json({ error: 'Post not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch post' });
+  }
+});
+
+// Route to update a post by ID
+app.post('/update-post/:id', async (req, res) => {
+  const { id } = req.params;
+  const { title, content } = req.body;
+  try {
+    const post = await Post.findByPk(id);
+    if (post) {
+      post.title = title;
+      post.content = content;
+      await post.save();
+      res.redirect('/');
+    } else {
+      res.status(404).json({ error: 'Post not found' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update post' });
+  }
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+});
+
+
+
+/* // // import express from "express";
 // // import path from "path";
 // // import { createServer } from 'http';
 // // import { fileURLToPath } from "url";
@@ -101,129 +240,4 @@
 // app.listen(port, () => {
 //   console.log(`Example app listening at http://localhost:${port}`);
 // });
-
-
-import express from 'express';
-import { Sequelize, DataTypes } from 'sequelize';
-import dotenv from 'dotenv';
-
-dotenv.config();
-
-const app = express();
-const port = process.env.PORT || 5432;
-
-// Middleware to parse JSON requests
-app.use(express.json());
-
-// Initialize Sequelize with PostgreSQL connection
-const sequelize = new Sequelize('postgresql://root:RKOCz9fe3OmmCk6GeVdFkOBhLpSX9meH@dpg-cucvqo1opnds73amuj90-a.oregon-postgres.render.com/example_iyq5', {
-  dialect: 'postgres',
-  logging: false,
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false,
-    },
-  },
-});
-
-// Define the Post model
-const Post = sequelize.define('Post', {
-  title: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  content: {
-    type: DataTypes.TEXT,
-    allowNull: false,
-  },
-});
-
-// Synchronize the model with the database
-sequelize
-  .sync()
-  .then(() => {
-    console.log('Database connected and Post model synchronized');
-  })
-  .catch((err) => {
-    console.error('Error connecting to the database:', err);
-  });
-
-// Routes
-
-// Create a new post
-app.post('/posts', async (req, res) => {
-  const { title, content } = req.body;
-  try {
-    const newPost = await Post.create({ title, content });
-    res.status(201).json(newPost);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to create post' });
-  }
-});
-
-// Retrieve all posts
-app.get('/posts', async (req, res) => {
-  try {
-    const posts = await Post.findAll();
-    console.log(posts);
-    res.json(posts);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch posts' });
-  }
-});
-
-// Retrieve a single post by ID
-app.get('/posts/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const post = await Post.findByPk(id);
-    if (post) {
-      res.json(post);
-    } else {
-      res.status(404).json({ error: 'Post not found' });
-    }
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch post' });
-  }
-});
-
-// Update a post by ID
-app.put('/posts/:id', async (req, res) => {
-  const { id } = req.params;
-  const { title, content } = req.body;
-  try {
-    const post = await Post.findByPk(id);
-    if (post) {
-      post.title = title;
-      post.content = content;
-      await post.save();
-      res.json(post);
-    } else {
-      res.status(404).json({ error: 'Post not found' });
-    }
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to update post' });
-  }
-});
-
-// Delete a post by ID
-app.delete('/posts/:id', async (req, res) => {
-  const { id } = req.params;
-  try {
-    const post = await Post.findByPk(id);
-    if (post) {
-      await post.destroy();
-      res.json({ message: 'Post deleted' });
-    } else {
-      res.status(404).json({ error: 'Post not found' });
-    }
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete post' });
-  }
-});
-
-// Start the server
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
-});
+ */
